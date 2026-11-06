@@ -1,0 +1,1118 @@
+# Deploying a Java Web Application on Apache Tomcat – Step-by-Step Guide
+
+This guide explains the complete process of deploying a Java web application on an AWS EC2 Ubuntu instance using Git, Maven, JDK, and Apache Tomcat.
+
+Each step includes:
+
+- What we are doing.
+- Why we are doing it.
+- Which command we are using.
+- What the command actually does.
+- What output or result we should expect.
+
+The process is written so that even a beginner can understand and perform the deployment.
+
+## 1. Requirements and tools
+
+Before starting, we need the following:
+
+| Tool             | Purpose                              |
+| ---------------- | ------------------------------------ |
+| AWS EC2          | To create a Linux server             |
+| Ubuntu           | Operating system                     |
+| PuTTY / Git Bash | To connect to the EC2 server         |
+| Git              | To download source code from GitHub  |
+| JDK              | To compile and run Java applications |
+| Maven            | To build the Java application        |
+| Apache Tomcat    | To host the Java web application     |
+| Browser          | To access the deployed application   |
+
+Deployment flow:
+
+AWS EC2 Instance
+
+Create Ubuntu Linux server
+
+Connect using PuTTY / SSH
+
+Access the remote server
+
+Install Git + Maven + JDK
+
+Prepare the server environment
+
+Clone Java Project from GitHub
+
+Download application source code
+
+Build using Maven
+
+Generate WAR file
+
+Install and Start Apache Tomcat
+
+Run Tomcat on port 8080
+
+Deploy WAR File
+
+Copy WAR file into Tomcat webapps
+
+Access Application in Browser
+
+[http://EC2-PUBLIC-IP:8080/flipkart/](http://EC2-PUBLIC-IP:8080/flipkart/?utm_source=chatgpt.com)
+
+## Step 1: Create an AWS EC2 Instance
+
+What are we doing?
+
+We are creating a virtual Linux server in AWS. This server will be used to install Java, Maven, Git, and Tomcat and deploy our application.
+
+Step-by-step process:
+
+1. Log in to your AWS Management Console.
+2. Search for EC2 in the AWS search bar.
+3. Click on EC2 and select Launch Instance.
+4. Enter the instance name:
+
+`Tomcat_Server`
+
+5. Select the operating system:
+   - Ubuntu Server.
+6. Select the instance type according to your requirement.
+7. Create a new key pair or select an existing key pair.
+   - Download and securely save the private key.
+8. Configure the Security Group.
+
+Security Group configuration:
+
+We need to allow two types of connections.
+
+| Type       | Port | Purpose                   |
+| ---------- | ---- | ------------------------- |
+| SSH        | 22   | Connect to EC2            |
+| Custom TCP | 8080 | Access Tomcat application |
+
+For SSH, allow your own IP address. For port 8080, allow the required client IP addresses. For a temporary public demo, you can use `0.0.0.0/0`, but this exposes the application port to the internet.
+
+9\. Click Launch Instance.
+
+Expected result
+
+Your EC2 instance should be created successfully and its status should become Running.
+
+Important information to collect:
+
+- Public IPv4 address.
+- Instance name.
+- Private key file.
+
+We will use the public IP address to connect to the server.
+
+## Step 2: Connect to EC2 Using PuTTY
+
+What are we doing?
+
+We are connecting our local computer to the remote Ubuntu EC2 server using SSH.
+
+PuTTY is an SSH client that allows us to execute Linux commands on the EC2 instance.
+
+### 2.1 Convert the private key using PuTTYgen
+
+AWS commonly provides a `.pem` private key. PuTTY uses the `.ppk` format.
+
+1. Open PuTTYgen.
+2. Click Load.
+3. Select your downloaded `.pem` file. You may need to select All Files to see it.
+4. Click Save private key.
+5. If you want, configure a passphrase to protect the key.
+6. Save the file as:
+
+`Tomcat_Server.ppk`
+
+If you already have a `.ppk` file, you do not need to convert it again.
+
+### 2.2 Configure PuTTY
+
+1. Open PuTTY.
+2. Select Session on the left side.
+3. In Host Name, enter:
+
+`ubuntu@YOUR_EC2_PUBLIC_IP`
+
+Example: `ubuntu@13.xxx.xxx.xxx`
+
+4. Set Port to `22`.
+5. Select SSH as the connection type.
+6. Go to Connection → SSH.
+7. Enable TCP keepalives if desired.
+8. Go to Connection → SSH → Auth → Credentials.
+9. Select your saved `.ppk` private key file.
+10. Return to Session.
+11. Click Open.
+12. Accept the server host-key prompt if it is the expected EC2 instance.
+
+If you configured a key passphrase, enter it when prompted.
+
+Expected result
+
+You should successfully connect to the Ubuntu EC2 instance and see a Linux terminal.
+
+## Step 3: Verify the EC2 Server Connection
+
+Now we need to check whether we are connected to the correct server.
+
+Execute the following command:
+
+```
+ls && pwd && whoami && hostname -i
+```
+
+Command explanation:
+
+| Command       | Purpose                                 |
+| ------------- | --------------------------------------- |
+| `ls`          | Displays files and folders              |
+| `pwd`         | Displays the current directory          |
+| `whoami`      | Displays the current logged-in username |
+| `hostname -i` | Displays the server's IP address        |
+
+Why are we executing this?
+
+We want to confirm that:
+
+- The server is accessible.
+- We are logged in as the Ubuntu user.
+- We know our current working directory.
+- The Linux environment is working properly.
+
+## Step 4: Install Git, Maven, and JDK
+
+What are we doing?
+
+Before downloading and building our Java application, we need to install the required software on the Ubuntu server.
+
+Execute:
+
+```
+sudo apt update -y
+```
+
+What does it do?
+
+- `sudo` – Executes the command with administrator privileges.
+- `apt` – Ubuntu package management tool.
+- `update` – Updates the available package information.
+- `-y` – Automatically confirms prompts where applicable.
+
+Next, install the required tools:
+
+```
+sudo apt install git maven default-jdk -y
+```
+
+What are we installing?
+
+1. Git: Used to download source code from GitHub.
+2. Maven: Used to build the Java application and generate the WAR file.
+3. JDK: Required to compile and execute Java applications.
+
+### Verify the installations
+
+Execute:
+
+```
+mvn --version
+```
+
+This displays the installed Maven version and Java information.
+
+```
+git --version
+```
+
+This displays the installed Git version.
+
+```
+java --version
+```
+
+This displays the installed Java version.
+
+Expected result
+
+All three commands should display their version information without errors.
+
+Important: Use a JDK version compatible with the Java project and the Tomcat version.
+
+## Step 5: Download the Java Application from GitHub
+
+What are we doing?
+
+Our Java application source code is available in a GitHub repository.
+
+We are downloading that source code into the EC2 server using Git.
+
+Execute:
+
+```
+git clone https://github.com/nageshvkn/iflipkart.git
+```
+
+Command explanation:
+
+- `git` – Git version control tool.
+- `clone` – Downloads a repository.
+- GitHub URL – The location of our Java application source code.
+
+After executing this command, Git creates a directory named:
+
+`iflipkart`
+
+### Verify the downloaded project
+
+Execute:
+
+```
+ls
+```
+
+You should see the `iflipkart` folder.
+
+Enter the project directory:
+
+```
+cd iflipkart
+```
+
+Check the files:
+
+```
+ls
+```
+
+What are we checking?
+
+We are confirming that the Java application source code has been downloaded successfully.
+
+You may see files and folders such as:
+
+- `pom.xml`
+- `src`
+- Other project configuration files.
+
+`pom.xml` is the Maven configuration file. It contains project dependencies, build configuration, and packaging information.
+
+## Step 6: Check the Web Application Configuration
+
+What are we doing?
+
+We are checking the deployment configuration of our Java web application.
+
+Execute:
+
+```
+cd src/main/webapp/WEB-INF/
+```
+
+Now execute:
+
+```
+ls
+```
+
+This displays the files inside the `WEB-INF` folder.
+
+Next:
+
+```
+cat web.xml
+```
+
+What does this command do?
+
+- `cat` – Displays the contents of a file.
+- `web.xml` – Deployment descriptor for a traditional Java web application.
+
+It may contain:
+
+- Servlet configurations.
+- Servlet mappings.
+- Welcome page configurations.
+- Other web application settings.
+
+Why are we checking it?
+
+We want to understand how the Java web application is configured before deployment.
+
+Note: Some modern Java applications use annotations instead of `web.xml`, so this file may not exist in every project.
+
+## Step 7: Build the Java Application Using Maven
+
+What are we doing?
+
+Now we are going to build the Java application using Maven.
+
+Maven reads the `pom.xml` file, downloads the required dependencies, compiles the Java code, and packages the application into a WAR file.
+
+First, return to the project root directory.
+
+Execute:
+
+```
+cd ../../../..
+```
+
+Check the current location:
+
+```
+pwd
+```
+
+You should be inside:
+
+`/home/ubuntu/iflipkart`
+
+Now check the project files:
+
+```
+ls
+```
+
+You should see `pom.xml` and `src`.
+
+### Build the application
+
+Execute:
+
+```
+mvn clean install
+```
+
+Command explanation:
+
+- `mvn` – Executes Maven.
+- `clean` – Removes the previous build output, usually the `target` directory.
+- `install` – Compiles, tests, packages the application, and installs the generated artifact into the local Maven repository.
+
+What happens internally?
+
+1. Maven reads `pom.xml`.
+2. Maven downloads the required dependencies.
+3. Java source files are compiled.
+4. Tests are executed, if configured.
+5. The application is packaged into a WAR file.
+6. The WAR file is generated inside the `target` directory.
+
+### Verify the WAR file
+
+Execute:
+
+```
+ls
+```
+
+Enter the target directory:
+
+```
+cd target
+```
+
+Execute:
+
+```
+ls
+```
+
+You should see:
+
+`flipkart.war`
+
+Expected result
+
+Our Java application has been successfully built, and the WAR file is ready for deployment.
+
+Remember: WAR stands for Web Application Archive. It contains the files required to deploy a Java web application on a servlet container such as Apache Tomcat.
+
+## Step 8: Download and Install Apache Tomcat
+
+What are we doing?
+
+We are downloading Apache Tomcat and extracting it on our EC2 Ubuntu server.
+
+Tomcat is the web server/servlet container that will run our Java web application.
+
+First, return to the project root directory:
+
+```
+cd ..
+```
+
+Now download Tomcat 9.
+
+```
+wget https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.123/bin/apache-tomcat-9.0.123.tar.gz
+```
+
+What does this command do?
+
+- `wget` – Downloads files from the internet.
+- The URL – Points to the Apache Tomcat compressed installation file.
+- `.tar.gz` – A compressed archive format.
+
+If that particular version is no longer available, use a supported Tomcat 9 release from the official Apache download page:
+
+[https://tomcat.apache.org/download-90.cgi](https://tomcat.apache.org/download-90.cgi?utm_source=chatgpt.com)
+
+### Extract the downloaded file
+
+Execute:
+
+```
+ls
+```
+
+You should see:
+
+`apache-tomcat-9.0.123.tar.gz`
+
+Now extract it:
+
+```
+tar -zxvf apache-tomcat-9.0.123.tar.gz
+```
+
+Command explanation:
+
+| Option | Meaning                    |
+| ------ | -------------------------- |
+| `tar`  | Archive management command |
+| `-z`   | Handles gzip compression   |
+| `-x`   | Extracts files             |
+| `-v`   | Displays extracted files   |
+| `-f`   | Specifies the archive file |
+
+After extraction, check:
+
+```
+ls
+```
+
+You should see the directory:
+
+`apache-tomcat-9.0.123`
+
+Enter the Tomcat directory:
+
+```
+cd apache-tomcat-9.0.123
+```
+
+Check its contents:
+
+```
+ls
+```
+
+You should see directories such as:
+
+- `bin`
+- `conf`
+- `lib`
+- `logs`
+- `webapps`
+- `work`
+- `temp`
+
+What are these directories used for?
+
+| Directory | Purpose                                      |
+| --------- | -------------------------------------------- |
+| `bin`     | Tomcat startup and shutdown scripts          |
+| `conf`    | Tomcat configuration files                   |
+| `lib`     | Tomcat libraries                             |
+| `logs`    | Tomcat log files                             |
+| `webapps` | Location where web applications are deployed |
+| `work`    | Temporary working files                      |
+| `temp`    | Temporary files                              |
+
+## Step 9: Start the Apache Tomcat Server
+
+What are we doing?
+
+Now we are starting the Tomcat server so that it can accept web requests.
+
+First, navigate to the `webapps` directory:
+
+```
+cd webapps
+```
+
+Check its contents:
+
+```
+ls
+```
+
+This directory contains the applications deployed on Tomcat. Initially, you may see default applications such as `ROOT`, `docs`, `examples`, and `host-manager`.
+
+Check the current location:
+
+```
+pwd
+```
+
+Return to the Tomcat installation directory:
+
+```
+cd ..
+```
+
+Now enter the `bin` directory:
+
+```
+cd bin
+```
+
+Check the available scripts:
+
+```
+ls
+```
+
+You should see:
+
+- `startup.sh`
+- `shutdown.sh`
+- `catalina.sh`
+
+### Start Tomcat
+
+Execute:
+
+```
+./startup.sh
+```
+
+What does this command do?
+
+- `./` – Executes a file from the current directory.
+- `startup.sh` – Starts the Apache Tomcat server.
+
+Tomcat starts in the background.
+
+Check the server IP:
+
+```
+hostname -i
+```
+
+You can also check the Tomcat logs:
+
+```
+tail -f ../logs/catalina.out
+```
+
+Press `Ctrl + C` to stop viewing the logs. This does not stop Tomcat.
+
+Expected result
+
+Tomcat should start successfully without Java or configuration errors.
+
+### Verify Tomcat in the browser
+
+Open your browser and enter:
+
+```
+http://YOUR_EC2_PUBLIC_IP:8080/
+```
+
+Example:
+
+```
+http://13.xxx.xxx.xxx:8080/
+```
+
+If everything is configured correctly, you should see the Apache Tomcat welcome page.
+
+Important: Use `http://`, not `https://`, unless you have separately configured HTTPS.
+
+At this stage, Tomcat is running, but our Flipkart application has not yet been deployed.
+
+## Step 10: Deploy the Java Application into Tomcat
+
+What are we doing?
+
+We have successfully:
+
+1. Created the EC2 instance.
+2. Installed Git, Maven, and JDK.
+3. Downloaded the Java project.
+4. Built the project using Maven.
+5. Generated the `flipkart.war` file.
+6. Installed and started Apache Tomcat.
+
+Now we need to copy the WAR file into the Tomcat `webapps` directory.
+
+This is the actual application deployment step.
+
+### 10.1 Navigate to the Maven target directory
+
+Execute:
+
+```
+cd ../..
+```
+
+From the Tomcat `bin` directory, this takes us back to the project root directory.
+
+Now enter the target directory:
+
+```
+cd target
+```
+
+Check the WAR file:
+
+```
+ls
+```
+
+You should see:
+
+`flipkart.war`
+
+### 10.2 Copy the WAR file into Tomcat
+
+Execute:
+
+```
+cp flipkart.war /home/ubuntu/iflipkart/apache-tomcat-9.0.123/webapps/
+```
+
+What does this command do?
+
+- `cp` – Copies a file from one location to another.
+- `flipkart.war` – Our generated Java application.
+- Destination path – Tomcat's `webapps` directory.
+
+We are copying our application package into the Tomcat deployment directory.
+
+### 10.3 Verify the deployment
+
+Execute:
+
+```
+cd /home/ubuntu/iflipkart/apache-tomcat-9.0.123/webapps/
+```
+
+Now execute:
+
+```
+ls
+```
+
+You should see:
+
+`flipkart.war`
+
+If Tomcat is running with its default automatic deployment configuration, it will detect the WAR file, extract it into a `flipkart` directory, and deploy the application.
+
+Verify again:
+
+```
+ls
+```
+
+You should now see both:
+
+- `flipkart.war`
+- `flipkart/`
+
+The `flipkart` folder contains the extracted application files.
+
+Why is the folder created automatically?
+
+Tomcat automatically deploys WAR files placed in the `webapps` directory when automatic deployment is enabled.
+
+### 10.4 Access the deployed application
+
+Open your browser and enter:
+
+```
+http://YOUR_EC2_PUBLIC_IP:8080/flipkart/
+```
+
+Example:
+
+```
+http://13.xxx.xxx.xxx:8080/flipkart/
+```
+
+Deployment completed
+
+If the application is configured correctly, you should see your Flipkart Java web application in the browser.
+
+How does this URL work?
+
+| URL component        | Explanation                                             |
+| -------------------- | ------------------------------------------------------- |
+| `http://`            | HTTP protocol                                           |
+| `YOUR_EC2_PUBLIC_IP` | Public IP address of EC2                                |
+| `8080`               | Tomcat server port                                      |
+| `/flipkart`          | Application context path, derived from the WAR filename |
+
+## Step 11: Make Changes to the JSP or HTML Files
+
+What are we doing?
+
+Suppose we want to change the application homepage, edit the JSP file, or update the HTML content.
+
+We need to modify the source code and build the application again.
+
+### 11.1 Navigate to the web application source directory
+
+Execute:
+
+```
+cd /home/ubuntu/iflipkart/src/main/webapp/
+```
+
+Check the available files:
+
+```
+ls
+```
+
+You may see files such as:
+
+- `index.jsp`
+- `WEB-INF`
+- CSS files
+- JavaScript files
+- HTML files
+
+### 11.2 Edit the JSP file
+
+Execute:
+
+```
+vim index.jsp
+```
+
+What does this command do?
+
+- `vim` – Opens a text editor in the Linux terminal.
+- `index.jsp` – The JSP page we want to modify.
+
+### How to edit using Vim
+
+1. Press `i` to enter INSERT mode.
+2. Make the required changes.
+3. Press `Esc` to exit INSERT mode.
+4. Type `:wq`.
+5. Press Enter to save and exit.
+
+Now the JSP source file has been updated.
+
+## Step 12: Redeploy the Updated Application
+
+What are we doing?
+
+We have modified the JSP file. Now we need to rebuild the application and deploy the updated WAR file.
+
+We will follow these steps:
+
+1. Stop Tomcat.
+2. Remove the old deployed application.
+3. Clean the previous Maven build.
+4. Build a new WAR file.
+5. Copy the new WAR file into Tomcat.
+6. Start Tomcat again.
+
+### 12.1 Return to the project root directory
+
+Execute:
+
+```
+cd /home/ubuntu/iflipkart
+```
+
+### 12.2 Stop Tomcat
+
+Execute:
+
+```
+./apache-tomcat-9.0.123/bin/shutdown.sh
+```
+
+Why are we stopping Tomcat?
+
+We are stopping the server before removing the old application and deploying the updated version.
+
+### 12.3 Remove the old deployed application
+
+Execute:
+
+```
+cd apache-tomcat-9.0.123/webapps/
+```
+
+Check the existing applications:
+
+```
+ls
+```
+
+Remove the old application directory and WAR file:
+
+```
+rm -rf flipkart flipkart.war
+```
+
+What does this command do?
+
+- `rm` – Removes files or directories.
+- `-r` – Removes directories and their contents recursively.
+- `-f` – Forces removal without interactive confirmation.
+
+We are removing only the previous Flipkart deployment, not the entire Tomcat server.
+
+Check again:
+
+```
+ls
+```
+
+The old Flipkart deployment should no longer be present.
+
+### 12.4 Build the updated Java application
+
+Return to the project root:
+
+```
+cd /home/ubuntu/iflipkart
+```
+
+Clean the previous build:
+
+```
+mvn clean
+```
+
+What does `mvn clean` do?
+
+It removes the previous build output from the `target` directory.
+
+Now build the updated application:
+
+```
+mvn install
+```
+
+What happens now?
+
+- Maven reads the updated source files.
+- Compiles the Java application.
+- Runs configured tests.
+- Packages the updated application.
+- Generates a new WAR file.
+
+### 12.5 Verify the new WAR file
+
+Execute:
+
+```
+cd target
+```
+
+Then:
+
+```
+ls
+```
+
+You should see:
+
+`flipkart.war`
+
+### 12.6 Copy the updated WAR file into Tomcat
+
+Execute:
+
+```
+cp flipkart.war /home/ubuntu/iflipkart/apache-tomcat-9.0.123/webapps/
+```
+
+Now the updated WAR file is available inside the Tomcat deployment directory.
+
+### 12.7 Start Tomcat again
+
+Execute:
+
+```
+cd /home/ubuntu/iflipkart/apache-tomcat-9.0.123/bin/
+```
+
+Start Tomcat:
+
+```
+./startup.sh
+```
+
+Check the server IP:
+
+```
+hostname -i
+```
+
+Tomcat will automatically deploy the updated WAR file.
+
+### 12.8 Verify the updated application
+
+Open your browser:
+
+```
+http://YOUR_EC2_PUBLIC_IP:8080/flipkart/
+```
+
+You should now see the updated JSP or HTML content.
+
+Updated deployment completed
+
+## Step 13: Troubleshooting – Common Errors and Solutions
+
+During deployment, sometimes we may face errors. Here are some common issues and how to solve them.
+
+| Problem                   | Possible reason                           | Solution                                        |
+| ------------------------- | ----------------------------------------- | ----------------------------------------------- |
+| Connection timed out      | Port 8080 is blocked                      | Check EC2 Security Group inbound rules          |
+| PuTTY connection refused  | Port 22 or SSH configuration issue        | Check SSH rule and EC2 status                   |
+| `mvn: command not found`  | Maven is not installed                    | Install Maven                                   |
+| `java: command not found` | JDK is not installed                      | Install JDK                                     |
+| WAR file not generated    | Maven build failed                        | Check Maven errors and `pom.xml`                |
+| Tomcat not starting       | Java or configuration problem             | Check `catalina.out`                            |
+| 404 error                 | Application not deployed or incorrect URL | Check WAR filename and `webapps` directory      |
+| 500 error                 | Application runtime error                 | Check Tomcat logs and application configuration |
+
+### Important debugging commands
+
+Check whether Tomcat is running:
+
+```
+ps -ef | grep tomcat
+```
+
+Check whether port 8080 is listening:
+
+```
+sudo ss -lntp | grep 8080
+```
+
+View Tomcat logs:
+
+```
+tail -100 /home/ubuntu/iflipkart/apache-tomcat-9.0.123/logs/catalina.out
+```
+
+Monitor logs continuously:
+
+```
+tail -f /home/ubuntu/iflipkart/apache-tomcat-9.0.123/logs/catalina.out
+```
+
+If deployment fails, these commands help identify the problem.
+
+## Step 14: Final Deployment Verification Checklist
+
+Use this checklist to confirm that all deployment steps are completed.
+
+Deployment progress
+
+0/16 completed
+
+Created AWS EC2 Ubuntu instance
+
+Configured SSH port 22 and Tomcat port 8080
+
+Connected to EC2 using PuTTY
+
+Installed Git successfully
+
+Installed Maven successfully
+
+Installed JDK successfully
+
+Downloaded Java application from GitHub
+
+Checked pom.xml and web.xml
+
+Built application using Maven
+
+Generated flipkart.war file
+
+Downloaded and extracted Apache Tomcat
+
+Started Tomcat successfully
+
+Copied WAR file into Tomcat webapps directory
+
+Verified automatic application deployment
+
+Opened Flipkart application in browser
+
+Modified JSP file and tested redeployment
+
+## Step 15: Understand the Important Commands at a Glance
+
+| Command                                     | What we are doing             |
+| ------------------------------------------- | ----------------------------- |
+| `sudo apt update -y`                        | Updating package information  |
+| `sudo apt install git maven default-jdk -y` | Installing required tools     |
+| `git clone URL`                             | Downloading source code       |
+| `cd directory`                              | Entering a directory          |
+| `ls`                                        | Listing files                 |
+| `pwd`                                       | Checking current location     |
+| `cat web.xml`                               | Reading configuration         |
+| `mvn clean install`                         | Building the Java application |
+| `wget URL`                                  | Downloading Tomcat            |
+| `tar -zxvf file.tar.gz`                     | Extracting Tomcat             |
+| `./startup.sh`                              | Starting Tomcat               |
+| `./shutdown.sh`                             | Stopping Tomcat               |
+| `cp file.war destination`                   | Copying the WAR file          |
+| `rm -rf directory`                          | Removing old deployment files |
+| `vim index.jsp`                             | Editing a JSP file            |
+| `tail -f catalina.out`                      | Monitoring Tomcat logs        |
+
+## Important points to remember
+
+1. EC2 provides the virtual Linux server.
+2. PuTTY helps us connect to the EC2 instance.
+3. Git downloads the application source code.
+4. JDK provides the Java development and runtime environment.
+5. Maven builds the application and generates the WAR file.
+6. Tomcat runs the Java web application.
+7. WAR file is deployed inside the Tomcat `webapps` directory.
+8. Port 8080 is used to access the Tomcat application.
+9. The WAR filename determines the application context path by default.
+10. We rebuild and redeploy whenever we make source-code changes.
+
+Two important technical notes:
+
+- If Tomcat is already running, copying a new WAR file normally triggers automatic deployment. You do not need to execute `startup.sh` again unless you have stopped Tomcat.
+- Tomcat 9 uses the `javax.servlet` API. If your project uses `jakarta.servlet`, check compatibility before deploying; Tomcat 10 or later may be required.
+
+Final result
+
+Successfully deployed Java Web Application on Apache Tomcat
+
+# Application URL
+
+`http://YOUR_EC2_PUBLIC_IP:8080/flipkart/`
+
+Replace YOUR_EC2_PUBLIC_IP with the public IPv4 address of your running EC2 instance. HTTP is used here because HTTPS has not been configured in this setup.
+
+Overall, what have we achieved?
+
+We have taken a Java application from GitHub, downloaded it to an AWS EC2 Ubuntu server, built it using Maven, generated a WAR file, deployed that WAR file into Apache Tomcat, and accessed the application through a web browser. We also learned how to modify JSP files and redeploy the updated application.
+
+This is a practical example of Java Web Application Deployment on AWS EC2 using Apache Tomcat.
